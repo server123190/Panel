@@ -12,15 +12,4 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for safety
-RUN useradd -ms /bin/bash devuser
-USER devuser
-WORKDIR /home/devuser
-
-# Copy an entrypoint script
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-EXPOSE 22
-
-ENTRYPOINT ["/entrypoint.sh"]
+tmate
