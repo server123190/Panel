@@ -1,1 +1,154 @@
-sda
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { REST } = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v9');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
+});
+
+const token = 'MTQwNTIwMTQwNTYzOTM5MzM3NA.G4KD8H.rFCbigK78yyFy7s_jblVWMKOmsxb0UaNAHt4kU'; // Replace with your bot token
+const clientId = '1405201405639393374'; // Replace with your bot's client ID
+
+// Command setup
+const commands = [
+  {
+    name: 'ticketappearhere',
+    description: 'Creates a ticket creation button in this channel',
+  },
+];
+
+const rest = new REST({ version: '9' }).setToken(token);
+
+// Register slash commands
+(async () => {
+  try {
+    console.log('Started refreshing application (/) commands.');
+    await rest.put(
+      Routes.applicationCommands(clientId),
+      { body: commands },
+    );
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error(error);
+  }
+})();
+
+// When bot is ready
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+});
+
+// Handle slash commands
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isCommand()) return;
+
+  if (interaction.commandName === 'ticketappearhere') {
+    // Check if user has admin permissions
+    if (!interaction.member.permissions.has('ADMINISTRATOR')) {
+      return interaction.reply({ content: 'You need to be an admin to use this command!', ephemeral: true });
+    }
+
+    // Create ticket button
+    const button = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('create_ticket')
+          .setLabel('Create Ticket')
+          .setStyle(ButtonStyle.Primary),
+      );
+
+    // Create embed
+    const embed = new EmbedBuilder()
+      .setColor(0x0099FF)
+      .setTitle('Support Ticket')
+      .setDescription('Click the button below to create a ticket for any issue');
+
+    // Send the message with button
+    await interaction.channel.send({ 
+      embeds: [embed], 
+      components: [button] 
+    });
+    
+    await interaction.reply({ 
+      content: 'Ticket creation button has been created!', 
+      ephemeral: true 
+    });
+  }
+});
+
+// Handle button clicks
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === 'create_ticket') {
+    // Get the guild (server) and member who clicked the button
+    const guild = interaction.guild;
+    const member = interaction.member;
+
+    // Check if ticket channel already exists for this user
+    const existingChannel = guild.channels.cache.find(
+      channel => channel.topic === `ticket-${member.id}`
+    );
+
+    if (existingChannel) {
+      return interaction.reply({
+        content: `You already have an open ticket: ${existingChannel}`,
+        ephemeral: true,
+      });
+    }
+
+    // Create the ticket channel
+    try {
+      const channel = await guild.channels.create({
+        name: `ticket-${member.user.username}`,
+        topic: `ticket-${member.id}`,
+        parent: '1405196859248742560', // Optional: Replace with your support category ID
+        permissionOverwrites: [
+          {
+            id: guild.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: member.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+          },
+          // Add roles that should have access to tickets (like moderators)
+          {
+            id: '1365712385738018897', // Replace with your mod role ID
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+          },
+        ],
+      });
+
+      // Send initial message in the ticket
+      const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle(`Ticket for ${member.user.username}`)
+        .setDescription('Please describe your issue here. Staff will be with you shortly.');
+
+      await channel.send({ 
+        content: `${member}, welcome to your ticket!`,
+        embeds: [embed] 
+      });
+
+      await interaction.reply({
+        content: `Your ticket has been created: ${channel}`,
+        ephemeral: true,
+      });
+    } catch (error) {
+      console.error(error);
+      await interaction.reply({
+        content: 'There was an error creating your ticket. Please try again later.',
+        ephemeral: true,
+      });
+    }
+  }
+});
+
+// Login to Discord
+client.login(token);
